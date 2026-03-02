@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>神秘塔罗牌</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 首页 - 选择占卜方式 -->
+        <div id="home-screen" class="screen active">
+            <h1 class="title">✨ 神秘塔罗牌 ✨</h1>
+            <p class="subtitle">选择你的占卜方式</p>
+            <div class="spread-options">
+                <button class="spread-btn" data-spread="single">
+                    <span class="icon">🃏</span>
+                    <span class="name">单张牌</span>
+                    <span class="desc">简单的指引</span>
+                </button>
+                <button class="spread-btn" data-spread="three">
+                    <span class="icon">🃏🃏🃏</span>
+                    <span class="name">三张牌</span>
+                    <span class="desc">过去·现在·未来</span>
+                </button>
+                <button class="spread-btn" data-spread="cross">
+                    <span class="icon">✝️</span>
+                    <span class="name">凯尔特十字</span>
+                    <span class="desc">深度解读（10张牌）</span>
+                </button>
+            </div>
+            <div class="mystical-bg"></div>
+        </div>
+
+        <!-- 抽牌界面 -->
+        <div id="draw-screen" class="screen">
+            <h2 class="draw-title">点击牌背抽取</h2>
+            <div id="card-deck" class="card-deck"></div>
+            <p class="remaining">剩余可选: <span id="remaining-count">0</span></p>
+        </div>
+
+        <!-- 解析界面 -->
+        <div id="result-screen" class="screen">
+            <h2 class="result-title">你的塔罗牌</h2>
+            <div id="cards-display" class="cards-display"></div>
+            <div id="analysis-section" class="analysis-section">
+                <div class="ai-input-box">
+                    <p class="ai-hint">💭 输入你的想法，AI为你深度解读...</p>
+                    <textarea id="user-thought" placeholder="例如：我想了解我的感情状况..."></textarea>
+                    <button id="ai-analyze-btn" class="ai-btn">🔮 AI深度解读</button>
+                </div>
+                <div id="ai-result" class="ai-result hidden"></div>
+            </div>
+            <button id="restart-btn" class="restart-btn">🌙 重新占卜</button>
+        </div>
+    </div>
+
+    <script src="cards.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
