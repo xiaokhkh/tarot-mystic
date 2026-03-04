@@ -416,18 +416,21 @@ async function generateShareImage() {
     // 6. 添加到页面
     document.body.appendChild(shareContainer);
     
+    let canvas = null;
     try {
         // 等待 DOM 渲染完成
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // 强制重排以获取正确高度
-        shareContainer.offsetHeight;
+        const _ = shareContainer.offsetHeight;
         
         // 获取实际内容高度
         const contentHeight = shareContainer.scrollHeight;
         
+        console.log('开始截图，高度:', contentHeight);
+        
         // 使用 html2canvas 生成长截图
-        const canvas = await html2canvas(shareContainer, {
+        canvas = await html2canvas(shareContainer, {
             backgroundColor: '#1a1a2e',
             scale: 2,
             useCORS: true,
@@ -439,7 +442,10 @@ async function generateShareImage() {
             windowHeight: contentHeight
         });
         
-        return canvas.toDataURL('image/png');
+        console.log('截图完成');
+        
+        const dataUrl = canvas.toDataURL('image/png');
+        return dataUrl;
     } finally {
         // 清理临时容器
         if (document.body.contains(shareContainer)) {
