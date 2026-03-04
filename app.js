@@ -140,10 +140,14 @@ function renderCards() {
         cardEl.className = 'card-result';
         cardEl.style.animationDelay = `${index * 0.1}s`;
         
+        // 使用真实塔罗牌图片，图片占据主视觉
+        const cardImage = card.image 
+            ? `<img src="${card.image}" alt="${card.name}" class="card-img">` 
+            : `<span class="card-emoji">${card.emoji}</span>`;
+        
         cardEl.innerHTML = `
             <div class="card-front ${card.isReversed ? 'reversed' : ''}">
-                <span class="card-number">${card.english}</span>
-                <span class="card-emoji">${card.emoji}</span>
+                ${cardImage}
                 <span class="card-name">${card.name}</span>
                 <span class="card-position">${card.isReversed ? '逆位' : '正位'}</span>
             </div>
