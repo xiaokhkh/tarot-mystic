@@ -14,6 +14,39 @@ let gameState = {
     userThought: ''
 };
 
+// ========== 图片缓存 ==========
+const imageCache = {};
+
+// ========== 预加载所有塔罗牌图片并转换为 base64 ==========
+function preloadImages() {
+    TAROT_CARDS.forEach(card => {
+        if (card.image) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = card.image;
+            img.onload = () => {
+                // 将图片转换为 base64 避免跨域问题
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const base64Img = new Image();
+                    base64Img.src = canvas.toDataURL('image/jpeg', 0.9);
+                    imageCache[card.id] = base64Img;
+                } catch (e) {
+                    console.warn('图片转换失败:', card.name, e);
+                    imageCache[card.id] = img;
+                }
+            };
+            img.onerror = () => {
+                console.warn('图片加载失败:', card.image);
+            };
+        }
+    });
+}
+
 // ========== DOM 元素 ==========
 const screens = {
     home: document.getElementById('home-screen'),
@@ -35,6 +68,9 @@ const elements = {
 
 // ========== 初始化 ==========
 function init() {
+    // 预加载所有塔罗牌图片
+    preloadImages();
+    
     // 绑定占卜方式选择
     document.querySelectorAll('.spread-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -383,28 +419,53 @@ async function generateShareImage() {
         
         // 绘制卡牌图片
         try {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.src = card.image;
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-                setTimeout(resolve, 500); // 超时保护
-            });
+            // 使用缓存的图片
+            const cachedImg = imageCache[card.id];
             
-            ctx.save();
-            if (card.isReversed) {
-                ctx.translate(cardX + cardWidth / 2, cardY + cardHeight / 2);
-                ctx.rotate(Math.PI);
-                ctx.translate(-(cardX + cardWidth / 2), -(cardY + cardHeight / 2));
+            if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
+                ctx.save();
+                if (card.isReversed) {
+                    ctx.translate(cardX + cardWidth / 2, cardY + cardHeight / 2);
+                    ctx.rotate(Math.PI);
+                    ctx.translate(-(cardX + cardWidth / 2), -(cardY + cardHeight / 2));
+                }
+                ctx.drawImage(cachedImg, cardX + 10, cardY + 10, cardWidth - 20, cardHeight - 80);
+                ctx.restore();
+            } else {
+                // 如果缓存图片不可用，尝试实时加载
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.src = card.image + '?t=' + Date.now();
+                
+                await new Promise((resolve) => {
+                    img.onload = () => resolve(img);
+                    img.onerror = () => resolve(null);
+                    setTimeout(() => resolve(img.complete ? img : null), 800);
+                });
+                
+                if (img.complete && img.naturalWidth > 0) {
+                    ctx.save();
+                    if (card.isReversed) {
+                        ctx.translate(cardX + cardWidth / 2, cardY + cardHeight / 2);
+                        ctx.rotate(Math.PI);
+                        ctx.translate(-(cardX + cardWidth / 2), -(cardY + cardHeight / 2));
+                    }
+                    ctx.drawImage(img, cardX + 10, cardY + 10, cardWidth - 20, cardHeight - 80);
+                    ctx.restore();
+                } else {
+                    throw new Error('图片加载失败');
+                }
             }
-            ctx.drawImage(img, cardX + 10, cardY + 10, cardWidth - 20, cardHeight - 80);
-            ctx.restore();
         } catch (e) {
-            // 如果图片加载失败，绘制emoji
-            ctx.font = '60px serif';
+            // 如果图片加载失败，绘制emoji和卡牌名称
+            ctx.fillStyle = '#2a2a4a';
+            ctx.fillRect(cardX + 10, cardY + 10, cardWidth - 20, cardHeight - 80);
+            ctx.font = '50px serif';
             ctx.textAlign = 'center';
-            ctx.fillText(card.emoji, cardX + cardWidth / 2, cardY + 100);
+            ctx.fillText(card.emoji, cardX + cardWidth / 2, cardY + 80);
+            ctx.font = '14px Georgia, serif';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(card.english, cardX + cardWidth / 2, cardY + 120);
         }
         
         // 绘制卡牌名称
