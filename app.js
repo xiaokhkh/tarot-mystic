@@ -485,3 +485,4 @@ function showScreen(screenName) {
 
 // ========== 启动 ==========
 document.addEventListener('DOMContentLoaded', init);
+// cache bust: 1772624957
