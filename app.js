@@ -1,3 +1,10 @@
+// ========== AI API 配置 ==========
+const AI_CONFIG = {
+    apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
+    apiKey: 'sk-iwpdzrsirmvqgcvgqqfczpblpzfjflgcpehflhyvlchwsefz',
+    model: 'Qwen/Qwen2.5-7B-Instruct'
+};
+
 // ========== 游戏状态 ==========
 let gameState = {
     currentSpread: null,
@@ -148,7 +155,7 @@ function renderCards() {
     });
 }
 
-// ========== AI 分析（模拟） ==========
+// ========== AI 分析 ==========
 async function handleAIAnalysis() {
     const userThought = elements.userThought.value.trim();
     
@@ -161,62 +168,113 @@ async function handleAIAnalysis() {
     elements.aiAnalyzeBtn.disabled = true;
     elements.aiAnalyzeBtn.innerHTML = '<span class="loading"></span> 正在解读...';
     
-    // 模拟 AI 响应（后续接入真实 API）
-    await simulateDelay(2000);
-    
-    // 生成分析结果
-    const analysis = generateAIAnalysis(userThought);
-    
-    // 显示结果
-    elements.aiResult.innerHTML = `
-        <h4>🔮 AI 深度解读</h4>
-        <div>${analysis}</div>
-    `;
-    elements.aiResult.classList.remove('hidden');
+    try {
+        // 调用真实 AI API
+        const analysis = await callAI(userThought);
+        
+        // 显示结果
+        elements.aiResult.innerHTML = `
+            <h4>🔮 AI 深度解读</h4>
+            <div>${analysis}</div>
+        `;
+        elements.aiResult.classList.remove('hidden');
+    } catch (error) {
+        console.error('AI API 调用失败:', error);
+        elements.aiResult.innerHTML = `
+            <h4>❌ 解读失败</h4>
+            <div>AI 服务暂时不可用，请稍后重试。<br>错误信息：${error.message}</div>
+        `;
+        elements.aiResult.classList.remove('hidden');
+    }
     
     // 恢复按钮
     elements.aiAnalyzeBtn.disabled = false;
     elements.aiAnalyzeBtn.textContent = '🔮 AI深度解读';
 }
 
-// ========== 生成模拟 AI 分析 ==========
-function generateAIAnalysis(userThought) {
+// ========== 调用真实 AI API ==========
+async function callAI(userThought) {
     const cards = gameState.drawnCards;
+    const spreadName = gameState.currentSpread.name;
     
     // 构建牌面信息
-    const cardSummary = cards.map(c => 
-        `${c.position}: ${c.name}(${c.isReversed ? '逆位' : '正位'})`
-    ).join('、');
+    const cardDetails = cards.map(c => ({
+        position: c.position,
+        name: c.name,
+        english: c.english,
+        isReversed: c.isReversed,
+        meaning: c.isReversed ? c.reversed : c.upright
+    }));
     
-    // 模拟分析（后续接入真实 AI API）
-    let analysis = `<p><strong>牌面：</strong>${cardSummary}</p>`;
-    analysis += `<p><strong>你的问题：</strong>${userThought}</p>`;
-    analysis += `<p><strong>解读：</strong></p>`;
-    
-    // 根据牌阵生成解读
-    if (cards.length === 1) {
-        const card = cards[0];
-        analysis += `<p>${card.name}${card.isReversed ? '逆位' : '正位'}提醒你：${card.isReversed ? card.reversed : card.upright}。这是一个重要的指引，特别是在你提到的"${userThought}"方面。请倾听内心的声音。</p>`;
-    } else if (cards.length === 3) {
-        analysis += `<p><strong>过去</strong>的影响：${cards[0].name}显示${cards[0].isReversed ? cards[0].reversed : cards[0].upright}。</p>`;
-        analysis += `<p><strong>现在</strong>的状态：${cards[1].name}提示${cards[1].isReversed ? cards[1].reversed : cards[1].upright}。</p>`;
-        analysis += `<p><strong>未来</strong>的可能：${cards[2].name}预示${cards[2].isReversed ? cards[2].reversed : cards[2].upright}。</p>`;
-        analysis += `<p>综合来看，关于"${userThought}"，牌面提示你需要关注当下的选择，未来是可以改变的。</p>`;
-    } else if (cards.length === 10) {
-        analysis += `<p><strong>现状</strong>：${cards[0].name} - ${cards[0].isReversed ? cards[0].reversed : cards[0].upright}</p>`;
-        analysis += `<p><strong>挑战</strong>：${cards[1].name} - ${cards[1].isReversed ? cards[1].reversed : cards[1].upright}</p>`;
-        analysis += `<p><strong>结果</strong>：${cards[9].name} - ${cards[9].isReversed ? cards[9].reversed : cards[9].upright}</p>`;
-        analysis += `<p>关于"${userThought}"，凯尔特十字展现了完整的时间线和影响因素。建议你重点关注挑战牌和结果牌，它们揭示了解决问题的关键。</p>`;
+    // 构建 prompt
+    const systemPrompt = `你是一位专业的塔罗牌占卜师，拥有深厚的塔罗知识和灵性洞察力。你的解读风格温暖、富有启发性，能够给予求问者有价值的指引。请用中文回答。`;
+
+    const userPrompt = `请为求问者解读以下塔罗牌阵：
+
+牌阵类型：${spreadName}
+
+抽到的牌：
+${cardDetails.map(c => `- ${c.position}：${c.name}（${c.english}）${c.isReversed ? '逆位' : '正位'} - 含义：${c.meaning}`).join('\n')}
+
+求问者的问题或想法：${userThought}
+
+请提供：
+1. 整体牌面能量分析
+2. 每张牌在对应位置的解读
+3. 综合建议和指引
+
+请用温暖、专业、有启发性的语调回答，控制在300字以内。`;
+
+    // 调用 API
+    const response = await fetch(AI_CONFIG.apiUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${AI_CONFIG.apiKey}`
+        },
+        body: JSON.stringify({
+            model: AI_CONFIG.model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.8,
+            max_tokens: 1000
+        })
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `API请求失败 (${response.status})`);
     }
+
+    const data = await response.json();
+    const aiContent = data.choices[0]?.message?.content || '无法获取AI解读';
     
-    analysis += `<p style="margin-top:15px;color:#888;font-size:0.9rem;">💡 提示：这是模拟分析，后续将接入真实AI解读。</p>`;
-    
-    return analysis;
+    // 格式化输出
+    return formatAIResponse(aiContent, cardDetails, userThought);
 }
 
-// ========== 模拟延迟 ==========
-function simulateDelay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+// ========== 格式化 AI 响应 ==========
+function formatAIResponse(aiContent, cardDetails, userThought) {
+    // 将 AI 内容转换为 HTML 格式
+    const formattedContent = aiContent
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // 构建牌面摘要
+    const cardSummary = cardDetails.map(c => 
+        `${c.position}：${c.name}（${c.isReversed ? '逆位' : '正位'}）`
+    ).join(' | ');
+    
+    return `
+        <p><strong>🎯 你的问题：</strong>${userThought}</p>
+        <p><strong>🎴 牌面：</strong>${cardSummary}</p>
+        <hr style="border-color: rgba(255,255,255,0.2); margin: 15px 0;">
+        <p>${formattedContent}</p>
+        <p style="margin-top:15px;color:#888;font-size:0.9rem;">💡 AI解读由 Qwen2.5-7B 提供</p>
+    `;
 }
 
 // ========== 重新占卜 ==========
