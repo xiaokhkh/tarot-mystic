@@ -420,6 +420,12 @@ async function generateShareImage() {
         // 等待 DOM 渲染完成
         await new Promise(resolve => setTimeout(resolve, 300));
         
+        // 强制重排以获取正确高度
+        shareContainer.offsetHeight;
+        
+        // 获取实际内容高度
+        const contentHeight = shareContainer.scrollHeight;
+        
         // 使用 html2canvas 生成长截图
         const canvas = await html2canvas(shareContainer, {
             backgroundColor: '#1a1a2e',
@@ -428,7 +434,9 @@ async function generateShareImage() {
             allowTaint: true,
             logging: false,
             width: 375,
-            windowWidth: 375
+            height: contentHeight,
+            windowWidth: 375,
+            windowHeight: contentHeight
         });
         
         return canvas.toDataURL('image/png');
