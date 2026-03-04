@@ -28,6 +28,8 @@ const elements = {
     userThought: document.getElementById('user-thought'),
     aiAnalyzeBtn: document.getElementById('ai-analyze-btn'),
     aiResult: document.getElementById('ai-result'),
+    shareBtn: document.getElementById('share-btn'),
+    shareCanvas: document.getElementById('share-canvas'),
     restartBtn: document.getElementById('restart-btn')
 };
 
@@ -43,6 +45,9 @@ function init() {
 
     // 绑定 AI 分析按钮
     elements.aiAnalyzeBtn.addEventListener('click', handleAIAnalysis);
+
+    // 绑定分享按钮
+    elements.shareBtn.addEventListener('click', handleShare);
 
     // 绑定重新占卜按钮
     elements.restartBtn.addEventListener('click', resetGame);
@@ -182,6 +187,9 @@ async function handleAIAnalysis() {
             <div>${analysis}</div>
         `;
         elements.aiResult.classList.remove('hidden');
+        
+        // 显示分享按钮
+        elements.shareBtn.classList.remove('hidden');
     } catch (error) {
         console.error('AI API 调用失败:', error);
         elements.aiResult.innerHTML = `
@@ -281,6 +289,246 @@ function formatAIResponse(aiContent, cardDetails, userThought) {
     `;
 }
 
+// ========== 分享功能 ==========
+async function handleShare() {
+    elements.shareBtn.disabled = true;
+    elements.shareBtn.textContent = '⏳ 生成图片中...';
+    
+    try {
+        const imageUrl = await generateShareImage();
+        downloadImage(imageUrl, '塔罗解读_' + new Date().toLocaleDateString('zh-CN').replace(/\//g, '-') + '.png');
+        elements.shareBtn.textContent = '✅ 已保存图片';
+        setTimeout(() => {
+            elements.shareBtn.textContent = '📤 分享我的塔罗解读';
+            elements.shareBtn.disabled = false;
+        }, 2000);
+    } catch (error) {
+        console.error('生成分享图片失败:', error);
+        alert('生成分享图片失败，请重试');
+        elements.shareBtn.textContent = '📤 分享我的塔罗解读';
+        elements.shareBtn.disabled = false;
+    }
+}
+
+// ========== 生成分享图片 ==========
+async function generateShareImage() {
+    const canvas = elements.shareCanvas;
+    const ctx = canvas.getContext('2d');
+    
+    const cards = gameState.drawnCards;
+    const spreadName = gameState.currentSpread.name;
+    const userThought = elements.userThought.value.trim();
+    const aiContent = elements.aiResult.innerText;
+    
+    // 提取 AI 解读关键词
+    let aiSummary = aiContent;
+    const startIdx = aiContent.indexOf('AI 深度解读');
+    const endIdx = aiContent.indexOf('AI解读由');
+    if (startIdx !== -1 && endIdx !== -1) {
+        aiSummary = aiContent.substring(startIdx + 8, endIdx).trim();
+    }
+    aiSummary = aiSummary.substring(0, 300) + '...';
+    
+    // 设置画布尺寸
+    const width = 800;
+    const cardHeight = 280;
+    const headerHeight = 120;
+    const footerHeight = 60;
+    const contentHeight = Math.max(300, Math.ceil(cards.length / 3) * (cardHeight + 20) + 200);
+    const height = headerHeight + contentHeight + footerHeight;
+    
+    canvas.width = width;
+    canvas.height = height;
+    
+    // 绘制渐变背景
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(0.5, '#16213e');
+    gradient.addColorStop(1, '#0f3460');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    
+    // 绘制装饰边框
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(20, 20, width - 40, height - 40);
+    
+    // 绘制标题
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 36px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('✨ 神秘塔罗牌 ✨', width / 2, 60);
+    
+    ctx.font = '20px Georgia, serif';
+    ctx.fillStyle = '#a8a8a8';
+    ctx.fillText(`${spreadName} · ${new Date().toLocaleDateString('zh-CN')}`, width / 2, 95);
+    
+    // 绘制卡牌
+    const cardWidth = 150;
+    const cardSpacing = 20;
+    const startX = (width - Math.min(cards.length, 3) * (cardWidth + cardSpacing) + cardSpacing) / 2;
+    let cardX = startX;
+    let cardY = headerHeight + 30;
+    
+    for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        
+        // 绘制卡牌背景
+        ctx.fillStyle = '#2a2a4a';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        roundRect(ctx, cardX, cardY, cardWidth, cardHeight, 10);
+        ctx.fill();
+        ctx.stroke();
+        
+        // 绘制卡牌图片
+        try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = card.image;
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                setTimeout(resolve, 500); // 超时保护
+            });
+            
+            ctx.save();
+            if (card.isReversed) {
+                ctx.translate(cardX + cardWidth / 2, cardY + cardHeight / 2);
+                ctx.rotate(Math.PI);
+                ctx.translate(-(cardX + cardWidth / 2), -(cardY + cardHeight / 2));
+            }
+            ctx.drawImage(img, cardX + 10, cardY + 10, cardWidth - 20, cardHeight - 80);
+            ctx.restore();
+        } catch (e) {
+            // 如果图片加载失败，绘制emoji
+            ctx.font = '60px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(card.emoji, cardX + cardWidth / 2, cardY + 100);
+        }
+        
+        // 绘制卡牌名称
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 16px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(card.name, cardX + cardWidth / 2, cardY + cardHeight - 45);
+        
+        // 绘制正逆位
+        ctx.fillStyle = card.isReversed ? '#e74c3c' : '#4CAF50';
+        ctx.font = '14px Georgia, serif';
+        ctx.fillText(card.isReversed ? '逆位' : '正位', cardX + cardWidth / 2, cardY + cardHeight - 25);
+        
+        // 绘制位置标签
+        ctx.fillStyle = '#888';
+        ctx.font = '12px Georgia, serif';
+        ctx.fillText(card.position, cardX + cardWidth / 2, cardY + cardHeight - 8);
+        
+        // 换行
+        if ((i + 1) % 3 === 0) {
+            cardX = startX;
+            cardY += cardHeight + 40;
+        } else {
+            cardX += cardWidth + cardSpacing;
+        }
+    }
+    
+    // 绘制问题
+    let textY = cardY + cardHeight + 50;
+    ctx.fillStyle = '#e8d5b7';
+    ctx.font = '16px Georgia, serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('🎯 我的问题：' + userThought, 40, textY);
+    
+    // 绘制 AI 解读
+    textY += 40;
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 18px Georgia, serif';
+    ctx.fillText('🔮 AI 解读', 40, textY);
+    
+    textY += 30;
+    ctx.fillStyle = '#c8c8c8';
+    ctx.font = '14px Georgia, serif';
+    
+    // 自动换行
+    const maxWidth = width - 80;
+    const lines = wrapText(ctx, aiSummary, maxWidth);
+    lines.forEach((line, index) => {
+        ctx.fillText(line, 40, textY + index * 22);
+    });
+    
+    // 绘制底部
+    const footerY = height - 45;
+    ctx.fillStyle = '#666';
+    ctx.font = '14px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('塔罗解读 · AI Qwen2.5-7B', width / 2, footerY);
+    
+    // 返回图片 URL
+    return canvas.toDataURL('image/png');
+}
+
+// ========== 辅助函数：圆角矩形 ==========
+function roundRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+}
+
+// ========== 辅助函数：文本换行 ==========
+function wrapText(ctx, text, maxWidth) {
+    const lines = [];
+    let currentLine = '';
+    
+    for (let i = 0; i < text.length; i++) {
+        const testLine = currentLine + text[i];
+        const metrics = ctx.measureText(testLine);
+        
+        if (metrics.width > maxWidth && currentLine !== '') {
+            lines.push(currentLine);
+            currentLine = text[i];
+        } else {
+            currentLine = testLine;
+        }
+    }
+    
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    
+    return lines;
+}
+
+// ========== 辅助函数：绘制圆角矩形 ==========
+function roundRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+}
+
+// ========== 辅助函数：下载图片 ==========
+function downloadImage(dataUrl, filename) {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = dataUrl;
+    link.click();
+}
+
 // ========== 重新占卜 ==========
 function resetGame() {
     gameState = {
@@ -290,6 +538,7 @@ function resetGame() {
         deck: [],
         userThought: ''
     };
+    elements.shareBtn.classList.add('hidden');
     showScreen('home');
 }
 
